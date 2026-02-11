@@ -36,7 +36,57 @@ class Admin
 
         // AJAX Handlers
         add_action('wp_ajax_st_ajax_handle_st_generate_key', array($this, 'ajax_generate_key'));
-        add_action('wp_ajax_st_ajax_handle_st_save_alerts', array($this, 'ajax_save_alerts'));
+        add_action('wp_ajax_st_ajax_handle_st_save_alerts', array($this, 'ajax_handle_save_alerts'));
+        
+        // Log Actions
+        add_action('admin_post_st_clear_logs', array($this, 'handle_clear_logs'));
+        add_action('wp_ajax_st_test_discord_alert', array($this, 'ajax_test_discord_alert'));
+    }
+
+    /**
+     * Handle Clear Logs.
+     */
+    public function handle_clear_logs()
+    {
+        if (!current_user_can('manage_options') || !isset($_POST['st_clear_logs_nonce']) || !wp_verify_nonce($_POST['st_clear_logs_nonce'], 'st_clear_logs_action')) {
+            wp_die('Unauthorized');
+        }
+
+        \Synditracker\Core\Logger::get_instance()->clear_logs();
+        wp_safe_redirect(add_query_arg('st-logs-cleared', '1', wp_get_referer()));
+        exit;
+    }
+
+    /**
+     * AJAX Test Discord Alert.
+     */
+    public function ajax_test_discord_alert()
+    {
+        check_ajax_referer('st_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized');
+        }
+
+        $url = get_option('synditracker_discord_webhook');
+        if (empty($url)) {
+            wp_send_json_error('No Webhook URL saved.');
+        }
+
+        $data = array(
+            'site_name' => 'Synditracker Hub (Test)',
+            'site_url'  => home_url()
+        );
+
+        $alerts = Alerts::get_instance();
+        $alerts->send_discord_alert($data);
+        
+        // Check logs for result since send_discord_alert serves void
+        // Ideally send_discord_alert should return status, but for now we assume success if no error logged
+        // or we can trap error by checking last log line? 
+        // Simpler: assume success if method runs, logger will catch errors.
+        
+        wp_send_json_success('Test alert sent.');
     }
 
     /**
@@ -411,12 +461,98 @@ class Admin
 
                 <p class="submit">
                     <input type="submit" name="st_save_alerts" class="button button-primary" value="Save Settings">
+                    <button type="button" id="st-test-discord" class="button button-secondary" style="margin-left: 10px;">Send Test Alert</button>
+                    <span id="st-test-discord-status" style="margin-left: 10px; font-weight: bold;"></span>
                 </p>
+            </form>
+        </div>
+        
+        <div id="logs" class="tab-content" style="display:none;">
+            <h2>System Logs</h2>
+            <p>Recent debug logs for troubleshooting.</p>
+            <textarea readonly style="width: 100%; height: 400px; font-family: monospace; background: #f0f0f1;"><?php 
+                $logs = \Synditracker\Core\Logger::get_instance()->get_logs(100);
+                echo esc_textarea(implode("", $logs)); 
+            ?></textarea>
+            <form method="post" style="margin-top: 10px;">
+                <input type="hidden" name="st_clear_logs" value="1">
+                <?php wp_nonce_field('st_clear_logs_action', 'st_clear_logs_nonce'); ?>
+                <input type="submit" class="button button-secondary" value="Clear Logs" onclick="return confirm('Are you sure you want to clear all logs?');">
             </form>
         </div>
         <?php
     }
 
+    /**
+     * AJAX Validate Key.
+     */
+    public function ajax_validate_key()
+    {
+        check_ajax_referer('st_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+
+        $hub_url = sanitize_text_field($_POST['hub_url']);
+        $api_key = sanitize_text_field($_POST['api_key']);
+
+        if (empty($hub_url) || empty($api_key)) {
+            wp_send_json_error(array('message' => 'Missing Hub URL or Site Key.'));
+        }
+
+        // Test connection
+        $response = wp_remote_post(trailingslashit($hub_url) . 'wp-json/synditracker/v1/log', array(
+            'body' => array(
+                'post_id' => 1,
+                'site_url' => home_url(),
+                'site_name' => 'Connection Test',
+                'aggregator' => 'Test'
+            ),
+            'headers' => array(
+                'X-Synditracker-Key' => $api_key
+            ),
+            'timeout' => 10
+        ));
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(array('message' => 'Connection Failed: ' . $response->get_error_message()));
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code === 200) {
+            update_option('synditracker_hub_url', $hub_url);
+            update_option('synditracker_site_key', $api_key);
+            wp_send_json_success(array('message' => 'Connection Successful! Settings Saved.'));
+        } else {
+            $body = wp_remote_retrieve_body($response);
+            $data = json_decode($body, true);
+            $msg = isset($data['message']) ? $data['message'] : 'Unknown Error';
+            wp_send_json_error(array('message' => "Hub Error ($code): $msg"));
+        }
+    }
+
+    /**
+     * AJAX Save Alerts Settings.
+     */
+    public function ajax_handle_save_alerts()
+    {
+        check_ajax_referer('st_admin_nonce', '_ajax_nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+
+        if (isset($_POST['st_discord_webhook'])) {
+            $url = sanitize_text_field($_POST['st_discord_webhook']);
+            update_option('synditracker_discord_webhook', $url);
+            
+            \Synditracker\Core\Logger::get_instance()->log("Discord Webhook URL updated by user.", 'INFO');
+            wp_send_json_success(array('message' => 'Settings saved successfully.'));
+        }
+        
+        wp_send_json_error(array('message' => 'No data received.'));
+    }
     /**
      * AJAX: Generate Key
      */

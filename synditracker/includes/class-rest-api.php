@@ -69,37 +69,58 @@ class REST_API
     }
 
     /**
-     * Handle the logging request.
+     * Handle logs from agents.
      */
-    public function log_handler(\WP_REST_Request $request)
-    {
+    public function log_handler($request) {
         $params = $request->get_params();
+        $logger = Logger::get_instance();
+
+        // Log incoming request
+        $logger->log("Incoming REST Request from " . ($params['site_url'] ?? 'Unknown'), 'INFO');
+        $logger->log("Params: " . json_encode($params), 'DEBUG');
 
         // Intercept Connection Tests (Pings)
         if (isset($params['aggregator']) && $params['aggregator'] === 'Test') {
+            $logger->log("Connection Test received from " . ($params['site_url'] ?? 'Unknown'), 'INFO');
             return new \WP_REST_Response(array('message' => 'Connection successful'), 200);
         }
 
         // Basic validation.
         if (empty($params['post_id']) || empty($params['site_url'])) {
+            $logger->log("Validation Failed: Missing required fields.", 'ERROR');
             return new \WP_REST_Response(array('message' => 'Missing required fields'), 400);
         }
 
-        $data = array(
-            'post_id'    => (int) $params['post_id'],
-            'site_url'   => esc_url_raw($params['site_url']),
-            'site_name'  => sanitize_text_field($params['site_name']),
-            'aggregator' => sanitize_text_field($params['aggregator']),
-        );
-
+        // Verify key.
         $db = DB::get_instance();
-        $log_id = $db->log_syndication($data);
+        $key_value = $request->get_header('X-Synditracker-Key');
 
-        if ($log_id) {
-            return new \WP_REST_Response(array('message' => 'Syndication logged successfully', 'id' => $log_id), 200);
+        if (!$key_value) {
+            $logger->log("Validation Failed: Missing X-Synditracker-Key header.", 'ERROR');
+            return new \WP_REST_Response(array('message' => 'Missing API Key'), 401);
         }
 
-        return new \WP_REST_Response(array('message' => 'Failed to log syndication'), 500);
+        $is_valid = $db->validate_key($key_value, $params['site_url']);
+
+        if (!$is_valid) {
+            $logger->log("Validation Failed: Invalid Key or URL mismatch. Key: $key_value, URL: {$params['site_url']}", 'ERROR');
+            return new \WP_REST_Response(array('message' => 'Invalid API Key'), 403);
+        }
+
+        // Store log.
+        $result = $db->insert_log($params);
+
+        if ($result) {
+            // Updated to handle both 'alert' and 'slack'
+            $alerts = Alerts::get_instance();
+            $alerts->check_and_send($params);
+            
+            $logger->log("Log stored successfully for Post ID: {$params['post_id']}", 'INFO');
+            return new \WP_REST_Response(array('message' => 'Log stored successfully'), 200);
+        }
+
+        $logger->log("Database Error: Failed to insert log.", 'ERROR');
+        return new \WP_REST_Response(array('message' => 'Failed to store log'), 500);
     }
 
     /**

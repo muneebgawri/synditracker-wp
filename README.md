@@ -48,6 +48,11 @@ This system is configured to receive updates directly from the [synditracker-wp]
 
 ## Changelog
 
+### 1.0.5
+- **New Feature**: "System Logs" tab in Hub and Agent settings for easier debugging.
+- **New Feature**: "Send Test Alert" button for verifying Discord webhook integration.
+- **Improvement**: Enhanced logging for all API requests and errors.
+
 ### 1.0.4
 - **Improvement**: Enhanced auto-update logic to download plugin-specific zip files instead of the full repository source.
 

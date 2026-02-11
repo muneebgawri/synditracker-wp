@@ -166,38 +166,82 @@ class Alerts
     /**
      * Send Discord alert.
      */
-    private function send_discord_alert($count, $threshold, $window)
+    /**
+     * Send Discord alert.
+     * Supports both Spike Alerts (3 args) and Generic Messages (1 arg array).
+     */
+    public function send_discord_alert($arg1, $arg2 = null, $arg3 = null)
     {
         $options = get_option('synditracker_alert_settings', array());
-        $webhook_url = $options['discord_webhook'];
+        $webhook_url = isset($options['discord_webhook']) ? $options['discord_webhook'] : '';
 
-        $data = array(
-            'username' => 'Synditracker Core',
-            'embeds'   => array(
-                array(
-                    'title'       => '🚀 DUPLICATE SPIKE DETECTED',
-                    'description' => sprintf('Synditracker has detected a surge in duplicate publishing events within the designated scanning window.'),
-                    'color'       => 15158332, // Red
-                    'fields'      => array(
-                        array('name' => 'Duplicates Found', 'value' => (string) $count, 'inline' => true),
-                        array('name' => 'Window', 'value' => $window . ' hour(s)', 'inline' => true),
-                        array('name' => 'Threshold', 'value' => (string) $threshold, 'inline' => true),
-                        array('name' => 'Pulse Command', 'value' => sprintf('[View Dashboard](%s)', admin_url('admin.php?page=synditracker')), 'inline' => false),
+        if (empty($webhook_url)) {
+            Logger::get_instance()->log("Discord Alert Skipped: No webhook URL configured.", 'INFO');
+            return;
+        }
+
+        // Check if this is a Spike Alert (3 arguments)
+        if ($arg2 !== null && $arg3 !== null) {
+            $count = $arg1;
+            $threshold = $arg2;
+            $window = $arg3;
+
+            $data = array(
+                'username' => 'Synditracker Core',
+                'embeds'   => array(
+                    array(
+                        'title'       => '🚀 DUPLICATE SPIKE DETECTED',
+                        'description' => sprintf('Synditracker has detected a surge in duplicate publishing events within the designated scanning window.'),
+                        'color'       => 15158332, // Red
+                        'fields'      => array(
+                            array('name' => 'Duplicates Found', 'value' => (string) $count, 'inline' => true),
+                            array('name' => 'Window', 'value' => $window . ' hour(s)', 'inline' => true),
+                            array('name' => 'Threshold', 'value' => (string) $threshold, 'inline' => true),
+                            array('name' => 'Pulse Command', 'value' => sprintf('[View Dashboard](%s)', admin_url('admin.php?page=synditracker')), 'inline' => false),
+                        ),
+                        'footer'      => array('text' => 'Branded System by Muneeb Gawri'),
+                        'timestamp'   => date('c'),
                     ),
-                    'footer'      => array(
-                        'text' => 'Branded System by Muneeb Gawri',
-                    ),
-                    'timestamp'   => date('c'),
                 ),
-            ),
-        );
+            );
+        } 
+        // Generic / Test Alert (1 argument array)
+        else {
+            $params = $arg1;
+            $site_name = isset($params['site_name']) ? $params['site_name'] : 'Unknown';
+            $site_url = isset($params['site_url']) ? $params['site_url'] : 'N/A';
+            
+            $data = array(
+                'username' => 'Synditracker Core',
+                'embeds'   => array(
+                    array(
+                        'title'       => '🔔 Syndication Alert',
+                        'description' => "**New Event Reported**\n\n**Source:** $site_name\n**URL:** $site_url",
+                        'color'       => 3066993, // Green
+                        'timestamp'   => date('c'),
+                        'footer'      => array('text' => 'Synditracker Notification'),
+                    ),
+                ),
+            );
+        }
 
-        wp_remote_post($webhook_url, array(
+        $response = wp_remote_post($webhook_url, array(
             'method'      => 'POST',
             'headers'     => array('Content-Type' => 'application/json'),
             'body'        => wp_json_encode($data),
-            'blocking'    => false,
+            'blocking'    => true, // Blocking to catch errors
         ));
+
+        if (is_wp_error($response)) {
+            Logger::get_instance()->log("Discord Alert Failed: " . $response->get_error_message(), 'ERROR');
+        } else {
+            $code = wp_remote_retrieve_response_code($response);
+            if ($code >= 200 && $code < 300) {
+                Logger::get_instance()->log("Discord Alert Sent Successfully.", 'INFO');
+            } else {
+                Logger::get_instance()->log("Discord Alert Failed with Status Code: $code", 'ERROR');
+            }
+        }
     }
 
     /**

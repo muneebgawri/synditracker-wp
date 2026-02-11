@@ -1,8 +1,8 @@
-jQuery(document).ready(function($) {
+jQuery(document).ready(function ($) {
     /**
      * Click to Copy Logic
      */
-    $(document).on('click', '.st-copy-btn', function() {
+    $(document).on('click', '.st-copy-btn', function () {
         const text = $(this).data('copy');
         const $btn = $(this);
         const originalHtml = $btn.html();
@@ -33,7 +33,7 @@ jQuery(document).ready(function($) {
     /**
      * AJAX Form Submissions
      */
-    $('.synditracker-dashboard form').on('submit', function(e) {
+    $('.synditracker-dashboard form').on('submit', function (e) {
         // Only target specific forms for AJAX
         const $form = $(this);
         const $submit = $form.find('input[type="submit"]');
@@ -42,7 +42,7 @@ jQuery(document).ready(function($) {
         // If it's the keys form or alerts form, handle via AJAX
         if (action === 'st_generate_key' || action === 'st_save_alerts') {
             e.preventDefault();
-            
+
             // Basic Frontend Validation
             if (action === 'st_save_alerts') {
                 const discordUrl = $form.find('#st_discord_webhook').val();
@@ -53,7 +53,7 @@ jQuery(document).ready(function($) {
             }
 
             $submit.prop('disabled', true).addClass('st-loading');
-            
+
             const formData = new FormData(this);
             formData.append('action', 'st_ajax_handle_' + action);
             formData.append('_ajax_nonce', st_admin.nonce);
@@ -64,12 +64,12 @@ jQuery(document).ready(function($) {
                 data: formData,
                 processData: false,
                 contentType: false,
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         // Show success message
                         const $msg = $('<div class="updated notice is-dismissible st-ajax-msg"><p>' + response.data.message + '</p></div>');
                         $('.st-header').after($msg);
-                        
+
                         // If it was key generation, reload the page after a short delay or refresh the table
                         if (action === 'st_generate_key') {
                             setTimeout(() => { location.reload(); }, 1000);
@@ -79,13 +79,38 @@ jQuery(document).ready(function($) {
                         $('.st-header').after($msg);
                     }
                 },
-                error: function() {
+                error: function () {
                     alert('A system error occurred. Please try again.');
                 },
-                complete: function() {
+                complete: function () {
                     $submit.prop('disabled', false).removeClass('st-loading');
                 }
             });
         }
+    });
+
+    // Test Discord Alert
+    $('#st-test-discord').on('click', function () {
+        var btn = $(this);
+        var originalText = btn.text();
+        var status = $('#st-test-discord-status');
+
+        btn.prop('disabled', true).text('Testing...');
+        status.text('').removeClass('success error');
+
+        $.post(st_admin.ajax_url, {
+            action: 'st_test_discord_alert',
+            nonce: st_admin.nonce
+        }, function (response) {
+            btn.prop('disabled', false).text(originalText);
+            if (response.success) {
+                status.text('Alert Sent! Check Discord.').addClass('success').css('color', 'green');
+            } else {
+                status.text('Failed: ' + (response.data || 'Unknown error')).addClass('error').css('color', 'red');
+            }
+        }).fail(function () {
+            btn.prop('disabled', false).text(originalText);
+            status.text('Network Error').addClass('error').css('color', 'red');
+        });
     });
 });
