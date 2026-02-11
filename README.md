@@ -5,7 +5,7 @@ Synditracker is a professional-grade, two-part WordPress syndication monitoring 
 
 ## System Components
 
-### 1. Synditracker (Hub/Core)
+### 1. Synditracker Core (Hub)
 The central monitoring station. 
 - **Role**: Receives reports from Agents, flags duplicates, and provides a dashboard.
 - **Key Features**: 

@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: Synditracker
+ * Plugin Name: Synditracker Core
  * Plugin URI: https://muneebgawri.com
  * Description: A professional-grade syndication tracking system to monitor how content spreads across partner sites.
  * Version: 1.0.1
@@ -132,11 +132,11 @@ class Synditracker_Core
      */
     private function load_dependencies()
     {
-        require_once SYNDITRACKER_CORE_PATH . 'includes/class-rest-api.php';
-        require_once SYNDITRACKER_CORE_PATH . 'includes/class-admin.php';
-        require_once SYNDITRACKER_CORE_PATH . 'includes/class-db.php';
-        require_once SYNDITRACKER_CORE_PATH . 'includes/class-keys.php';
-        require_once SYNDITRACKER_CORE_PATH . 'includes/class-alerts.php';
+        require_once SYNDITRACKER_PATH . 'includes/class-rest-api.php';
+        require_once SYNDITRACKER_PATH . 'includes/class-admin.php';
+        require_once SYNDITRACKER_PATH . 'includes/class-db.php';
+        require_once SYNDITRACKER_PATH . 'includes/class-keys.php';
+        require_once SYNDITRACKER_PATH . 'includes/class-alerts.php';
     }
 
     /**

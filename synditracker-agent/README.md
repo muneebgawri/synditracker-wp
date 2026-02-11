@@ -7,7 +7,7 @@ The Synditracker Agent is a lightweight component that reports press release syn
 1. Upload the `synditracker-agent` folder to your WordPress `wp-content/plugins/` directory.
 2. Activate the plugin in the WordPress Dashboard.
 3. Go to **Settings > Synditracker Agent**.
-4. Enter the **Hub URL** (e.g., `https://pinionnewswire.com`) and your provided **Site Key**.
+4. Enter the **Hub URL** (e.g., `https://yoursite.com`) and your provided **Site Key**.
 5. Save Changes. The agent will now automatically report every new press release import.
 
 ## Option 2: Standalone PHP Snippet
