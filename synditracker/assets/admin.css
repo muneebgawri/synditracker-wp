@@ -1,0 +1,194 @@
+/* Synditracker Core Premium UI */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.synditracker-dashboard {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 20px 40px 40px 20px;
+    max-width: 1200px;
+}
+
+.st-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.st-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0;
+}
+
+.st-version {
+    font-size: 12px;
+    font-weight: 600;
+    color: #718096;
+    background: #edf2f7;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-left: 12px;
+}
+
+/* Metrics Grid */
+.st-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 24px;
+    margin-bottom: 40px;
+}
+
+.st-card {
+    background: #ffffff;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    border: 1px solid #e2e8f0;
+    transition: transform 0.2s ease;
+}
+
+.st-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.st-card h3 {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.st-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: #1a202c;
+    line-height: 1;
+}
+
+.st-label {
+    font-size: 12px;
+    color: #718096;
+    margin-top: 8px;
+}
+
+/* Section Header */
+.st-section-header {
+    margin-bottom: 20px;
+}
+
+.st-section-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #2d3748;
+    margin: 0 0 4px 0;
+}
+
+.st-section-desc {
+    font-size: 14px;
+    color: #718096;
+}
+
+/* Tables */
+.st-table-container {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.synditracker-dashboard .wp-list-table {
+    border: none;
+    box-shadow: none;
+    margin: 0;
+}
+
+.synditracker-dashboard .wp-list-table thead th {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 600;
+    color: #4a5568;
+    padding: 12px 15px;
+}
+
+.synditracker-dashboard .wp-list-table td {
+    padding: 15px;
+    vertical-align: middle;
+}
+
+.st-site-name {
+    font-weight: 500;
+    color: #2d3748;
+}
+
+.st-external-link::before {
+    content: "\f504";
+    font-family: dashicons;
+    font-size: 14px;
+    color: #a0aec0;
+    margin-left: 6px;
+    text-decoration: none;
+}
+
+.st-external-link:hover::before {
+    color: #3182ce;
+}
+
+/* Badges */
+.st-badge {
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.badge-success {
+    background: #f0fff4;
+    color: #276749;
+}
+
+.badge-warning {
+    background: #fff5f5;
+    color: #9b2c2c;
+}
+
+.st-empty {
+    padding: 40px;
+    text-align: center;
+    color: #718096;
+    background: #f8fafc;
+}
+
+/* Forms */
+.st-inline-form {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.st-inline-form input[type="text"] {
+    flex: 1;
+    max-width: 400px;
+    border-radius: 6px;
+    border-color: #cbd5e0;
+}
+
+.st-section {
+    margin-top: 30px;
+}
+
+/* Alerts UI */
+.synditracker-dashboard .form-table th {
+    width: 240px;
+    font-weight: 600;
+}
+
+.st-card .form-table {
+    margin: 0;
+}
