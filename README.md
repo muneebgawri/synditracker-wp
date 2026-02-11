@@ -46,6 +46,18 @@ This system is configured to receive updates directly from the [synditracker-wp]
 - Ensure your server has access to GitHub's API.
 - Update notifications will appear in your WordPress dashboard just like standard plugins.
 
+## Changelog
+
+### 1.0.2
+- **New Feature**: AJAX-based settings saving (no page reloads).
+- **New Feature**: Click-to-Copy for Site Keys.
+- **New Feature**: Connectivity status indicators for Agent and Hub.
+- **Fix**: Critical error when both plugins are active.
+- **Improvement**: Enhanced validation logic.
+
+### 1.0.1
+- Initial public release.
+
 ## Developer & Support
 Developed by **Muneeb Gawri**. For support or custom integrations, visit [muneebgawri.com](https://muneebgawri.com).
 

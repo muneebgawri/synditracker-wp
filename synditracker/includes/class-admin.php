@@ -33,6 +33,10 @@ class Admin
     {
         add_action('admin_menu', array($this, 'add_menu'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
+
+        // AJAX Handlers
+        add_action('wp_ajax_st_ajax_handle_st_generate_key', array($this, 'ajax_generate_key'));
+        add_action('wp_ajax_st_ajax_handle_st_save_alerts', array($this, 'ajax_save_alerts'));
     }
 
     /**
@@ -87,6 +91,11 @@ class Admin
         }
 
                 wp_enqueue_style('synditracker-admin', SYNDITRACKER_URL . 'assets/admin.css', array(), SYNDITRACKER_VERSION);
+        wp_enqueue_script('synditracker-admin', SYNDITRACKER_URL . 'assets/admin.js', array('jquery'), SYNDITRACKER_VERSION, true);
+        wp_localize_script('synditracker-admin', 'st_admin', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('st_admin_nonce'),
+        ));
     }
 
     /**
@@ -234,6 +243,7 @@ class Admin
                             <tr>
                                 <th>Site Label</th>
                                 <th>Key Value</th>
+                                <th>Connection</th>
                                 <th>Created</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -246,8 +256,18 @@ class Admin
                                 <?php foreach ($keys as $k) : ?>
                                     <tr>
                                         <td><strong><?php echo esc_html($k->site_name); ?></strong></td>
-                                        <td><code><?php echo esc_html($k->key_value); ?></code></td>
-                                        <td><?php echo esc_html($k->created_at); ?></td>
+                                        <td>
+                                            <code><?php echo esc_html($k->key_value); ?></code>
+                                            <button type="button" class="st-copy-btn" data-copy="<?php echo esc_attr($k->key_value); ?>" title="Copy to clipboard"><span class="dashicons dashicons-clipboard"></span></button>
+                                        </td>
+                                        <td>
+                                            <?php if ($k->last_seen) : ?>
+                                                <span class="st-badge badge-success" title="Last seen: <?php echo esc_attr($k->last_seen); ?>">Connected</span>
+                                            <?php else : ?>
+                                                <span class="st-badge badge-gray">Pending</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?php echo esc_html(date('M d, Y', strtotime($k->created_at))); ?></td>
                                         <td>
                                             <span class="st-badge badge-<?php echo $k->status === 'active' ? 'success' : 'warning'; ?>">
                                                 <?php echo esc_html(ucfirst($k->status)); ?>
@@ -390,10 +410,66 @@ class Admin
                 </div>
 
                 <p class="submit">
-                    <input type="submit" name="st_save_alerts" class="button button-primary" value="Save Integrity Settings">
+                    <input type="submit" name="st_save_alerts" class="button button-primary" value="Save Settings">
                 </p>
             </form>
         </div>
         <?php
+    }
+
+    /**
+     * AJAX: Generate Key
+     */
+    public function ajax_generate_key()
+    {
+        check_ajax_referer('st_admin_nonce');
+        
+        $site_name = isset($_POST['st_site_name']) ? sanitize_text_field($_POST['st_site_name']) : '';
+        
+        if (empty($site_name)) {
+            wp_send_json_error(array('message' => 'Partner Site Name is required.'));
+        }
+
+        $keys_mgr = Keys::get_instance();
+        $key = $keys_mgr->generate_key($site_name);
+
+        if ($key) {
+            wp_send_json_success(array('message' => 'New key generated successfully for ' . $site_name));
+        } else {
+            wp_send_json_error(array('message' => 'Failed to generate key.'));
+        }
+    }
+
+    /**
+     * AJAX: Save Alerts
+     */
+    public function ajax_save_alerts()
+    {
+        check_ajax_referer('st_admin_nonce');
+
+        $discord_url = esc_url_raw($_POST['st_discord_webhook']);
+        if (!empty($discord_url) && strpos($discord_url, 'discord.com/api/webhooks/') === false) {
+            wp_send_json_error(array('message' => 'Invalid Discord Webhook URL.'));
+        }
+
+        $threshold = intval($_POST['st_threshold']);
+        if ($threshold < 1) {
+            wp_send_json_error(array('message' => 'Threshold must be at least 1.'));
+        }
+
+        $settings = array(
+            'email_enabled'   => isset($_POST['st_email_enabled']) ? 1 : 0,
+            'email_recipients'=> sanitize_textarea_field($_POST['st_email_recipients']),
+            'discord_enabled' => isset($_POST['st_discord_enabled']) ? 1 : 0,
+            'error_discord'   => isset($_POST['st_error_discord']) ? 1 : 0,
+            'discord_webhook' => $discord_url,
+            'scanning_window' => intval($_POST['st_scanning_window']),
+            'alert_frequency' => sanitize_text_field($_POST['st_alert_frequency']),
+        );
+
+        update_option('synditracker_alert_settings', $settings);
+        update_option('synditracker_spike_threshold', $threshold);
+
+        wp_send_json_success(array('message' => 'Settings saved successfully.'));
     }
 }

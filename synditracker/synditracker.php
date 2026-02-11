@@ -3,7 +3,7 @@
  * Plugin Name: Synditracker Core
  * Plugin URI: https://muneebgawri.com
  * Description: A professional-grade syndication tracking system to monitor how content spreads across partner sites.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Muneeb Gawri
  * Author URI: https://muneebgawri.com
  * Text Domain: synditracker
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define constants.
-define('SYNDITRACKER_VERSION', '1.0.1');
+define('SYNDITRACKER_VERSION', '1.0.2');
 define('SYNDITRACKER_PATH', plugin_dir_path(__FILE__));
 define('SYNDITRACKER_URL', plugin_dir_url(__FILE__));
 
@@ -118,6 +118,7 @@ class Synditracker_Core
             site_name VARCHAR(255) NOT NULL,
             status VARCHAR(20) DEFAULT 'active' NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            last_seen DATETIME DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY key_value (key_value)
         ) $charset_collate;";

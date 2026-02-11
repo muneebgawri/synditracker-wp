@@ -3,7 +3,7 @@
  * Plugin Name: Synditracker Agent
  * Plugin URI: https://muneebgawri.com
  * Description: A lightweight agent for partner sites to report syndicated content back to the Synditracker Core.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Muneeb Gawri
  * Author URI: https://muneebgawri.com
  * Text Domain: synditracker-agent
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define constants.
-define('SYNDITRACKER_AGENT_VERSION', '1.0.1');
+define('SYNDITRACKER_AGENT_VERSION', '1.0.2');
 define('SYNDITRACKER_AGENT_PATH', plugin_dir_path(__FILE__));
 
 /**
@@ -60,6 +60,29 @@ class Synditracker_Agent
         new \Synditracker_GitHub_Updater(__FILE__, 'muneebgawri/synditracker-wp', SYNDITRACKER_AGENT_VERSION, 'Synditracker Agent');
 
         add_action('admin_menu', array($this, 'add_settings_page'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
+        add_action('wp_ajax_st_agent_save_settings', array($this, 'ajax_save_settings'));
+    }
+
+    /**
+     * Enqueue assets.
+     */
+    public function enqueue_assets($hook)
+    {
+        if (strpos($hook, 'synditracker-agent') === false) {
+            return;
+        }
+
+        // Use the same admin CSS as Core if available, or a local copy
+        // For simplicity in this structure, we'll assume the Core hub might not be installed on the Agent site.
+        // But we put assets in synditracker-agent/assets too.
+        wp_enqueue_style('st-agent-admin', plugin_dir_url(__FILE__) . 'assets/admin.css', array(), SYNDITRACKER_AGENT_VERSION);
+        wp_enqueue_script('st-agent-admin', plugin_dir_url(__FILE__) . 'assets/agent-admin.js', array('jquery'), SYNDITRACKER_AGENT_VERSION, true);
+        
+        wp_localize_script('st-agent-admin', 'st_agent', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('st_agent_nonce'),
+        ));
     }
 
     /**
@@ -83,46 +106,106 @@ class Synditracker_Agent
      */
     public function render_settings()
     {
-        if (isset($_POST['st_agent_save'])) {
-            update_option('st_agent_hub_url', esc_url_raw($_POST['st_agent_hub_url']));
-            update_option('st_agent_site_key', sanitize_text_field($_POST['st_agent_site_key']));
-            echo '<div class="updated"><p>Agent configuration saved.</p></div>';
-        }
-
         $hub_url = get_option('st_agent_hub_url', '');
         $site_key = get_option('st_agent_site_key', '');
+        
+        // Initial connection check if values exist
+        $is_connected = false;
+        if ($hub_url && $site_key) {
+             // We can optionally check on load, or just rely on the AJAX test.
+             // For now, we'll let the user click "Save & Test" to see status.
+        }
         ?>
-        <div class="wrap">
-            <div style="background:#fff; padding:20px; border-radius:8px; border:1px solid #ccd0d4; max-width: 600px; margin-top:20px;">
-                <h1 style="margin-top:0;">Synditracker Agent</h1>
+        <div class="wrap synditracker-dashboard">
+            <div class="st-header">
+                <h1>Synditracker Agent</h1>
+                <span class="st-version">v<?php echo esc_html(SYNDITRACKER_AGENT_VERSION); ?></span>
+            </div>
+            
+            <div id="st-agent-message"></div>
+
+            <div class="st-card" style="max-width: 600px;">
                 <p>Configure this agent to report syndication events back to your <strong>Synditracker Core</strong> hub.</p>
-                <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
                 
-                <form method="post">
+                <div id="st-connection-status" class="st-agent-status <?php echo ($hub_url && $site_key) ? 'st-status-disconnected' : ''; ?>">
+                    <strong>Status:</strong> Unknown (Click Save & Test)
+                </div>
+
+                <form id="st-agent-form">
                     <table class="form-table">
                         <tr>
                             <th scope="row"><label for="st_agent_hub_url">Hub URL</label></th>
                             <td>
-                                <input type="url" name="st_agent_hub_url" id="st_agent_hub_url" value="<?php echo esc_url($hub_url); ?>" class="regular-text" placeholder="https://main-hub-site.com">
+                                <input type="url" name="st_agent_hub_url" id="st_agent_hub_url" value="<?php echo esc_url($hub_url); ?>" class="large-text" placeholder="https://main-hub-site.com" required>
                                 <p class="description">The URL where Synditracker Core is installed.</p>
                             </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="st_agent_site_key">Site Key</label></th>
                             <td>
-                                <input type="text" name="st_agent_site_key" id="st_agent_site_key" value="<?php echo esc_attr($site_key); ?>" class="regular-text">
+                                <input type="text" name="st_agent_site_key" id="st_agent_site_key" value="<?php echo esc_attr($site_key); ?>" class="large-text" required>
                                 <p class="description">Your unique key generated in the Hub's Key Management registry.</p>
                             </td>
                         </tr>
                     </table>
                     <p class="submit">
-                        <input type="submit" name="st_agent_save" class="button button-primary" value="Establish Connection">
+                        <input type="submit" name="st_agent_save" class="button button-primary" value="Save & Test Connection">
                     </p>
                 </form>
             </div>
-            <p style="margin-top:20px; color:#666;">Synditracker Agent v<?php echo esc_html(SYNDITRACKER_AGENT_VERSION); ?> by Muneeb Gawri</p>
         </div>
         <?php
+    }
+
+    /**
+     * AJAX: Save & Test Settings
+     */
+    public function ajax_save_settings()
+    {
+        check_ajax_referer('st_agent_nonce');
+
+        $hub_url = esc_url_raw($_POST['st_agent_hub_url']);
+        $site_key = sanitize_text_field($_POST['st_agent_site_key']);
+
+        update_option('st_agent_hub_url', $hub_url);
+        update_option('st_agent_site_key', $site_key);
+
+        // Test Connection
+        $response = wp_remote_post(trailingslashit($hub_url) . 'wp-json/synditracker/v1/log', array(
+            'body' => array(
+                'post_id' => 0, // Dummy ID
+                'site_url' => home_url(),
+                'site_name' => 'Connection Test',
+                'aggregator' => 'Test'
+            ),
+            'headers' => array(
+                'X-Synditracker-Key' => $site_key
+            ),
+            'timeout' => 5
+        ));
+
+        $connected = false;
+        $msg = 'Settings saved, but connection failed.';
+
+        if (!is_wp_error($response)) {
+            $code = wp_remote_retrieve_response_code($response);
+            if ($code === 200) {
+                $connected = true;
+                $msg = 'Settings saved and connection verified!';
+            } elseif ($code === 401 || $code === 403) {
+                $msg = 'Settings saved, but Authentication Failed (Invalid Key).';
+            } else {
+                $msg = 'Settings saved, but Hub returned error: ' . $code;
+            }
+        } else {
+             $msg = 'Settings saved, but could not reach Hub: ' . $response->get_error_message();
+        }
+
+        if ($connected) {
+            wp_send_json_success(array('message' => $msg, 'connected' => true));
+        } else {
+            wp_send_json_error(array('message' => $msg, 'connected' => false));
+        }
     }
 
     /**

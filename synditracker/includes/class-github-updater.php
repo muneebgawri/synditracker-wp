@@ -3,8 +3,9 @@
  * GitHub Updater Class.
  * Standardized for Synditracker projects.
  */
-class Synditracker_GitHub_Updater
-{
+if (!class_exists('Synditracker_GitHub_Updater')) {
+    class Synditracker_GitHub_Updater
+    {
     private $slug;
     private $plugin_file;
     private $github_repo;
@@ -104,5 +105,6 @@ class Synditracker_GitHub_Updater
         }
 
         return $data;
+    }
     }
 }

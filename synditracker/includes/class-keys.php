@@ -77,20 +77,35 @@ class Keys
         $wpdb->delete($table_name, array('id' => (int) $id), array('%d'));
     }
 
-    /**
-     * Validate a key.
-     */
     public function is_valid_key($key_value)
     {
         global $wpdb;
         $table_name = $wpdb->prefix . 'synditracker_keys';
 
         $query = $wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_name WHERE key_value = %s AND status = 'active'",
+            "SELECT id FROM $table_name WHERE key_value = %s AND status = 'active'",
             $key_value
         );
 
-        return (int) $wpdb->get_var($query) > 0;
+        $key_id = $wpdb->get_var($query);
+        return $key_id ? (int) $key_id : false;
+    }
+
+    /**
+     * Refresh the last_seen timestamp for a key.
+     */
+    public function refresh_last_seen($key_id)
+    {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'synditracker_keys';
+
+        $wpdb->update(
+            $table_name,
+            array('last_seen' => current_time('mysql')),
+            array('id' => (int) $key_id),
+            array('%s'),
+            array('%d')
+        );
     }
 
     /**

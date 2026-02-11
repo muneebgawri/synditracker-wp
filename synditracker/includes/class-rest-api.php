@@ -56,10 +56,14 @@ class REST_API
             return new \WP_Error('no_key', 'Unauthorized: Missing Site Key', array('status' => 401));
         }
 
-        // Validate site key against the new database registry.
-        if (!Keys::get_instance()->is_valid_key($site_key)) {
+        // Validate site key and get its ID.
+        $key_id = Keys::get_instance()->is_valid_key($site_key);
+        if (!$key_id) {
             return new \WP_Error('invalid_key', 'Unauthorized: Invalid Site Key', array('status' => 403));
         }
+
+        // Refresh last_seen for connectivity tracking.
+        Keys::get_instance()->refresh_last_seen($key_id);
 
         return true;
     }
