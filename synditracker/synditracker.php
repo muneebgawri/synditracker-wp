@@ -3,7 +3,7 @@
  * Plugin Name: Synditracker Core
  * Plugin URI: https://muneebgawri.com
  * Description: A professional-grade syndication tracking system to monitor how content spreads across partner sites.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Muneeb Gawri
  * Author URI: https://muneebgawri.com
  * Text Domain: synditracker
@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @since 1.0.0
  * @var string
  */
-define( 'SYNDITRACKER_VERSION', '1.0.6' );
+define( 'SYNDITRACKER_VERSION', '1.0.7' );
 
 /**
  * Plugin file path.
@@ -74,6 +74,14 @@ define( 'SYNDITRACKER_TABLE_LOGS', 'synditracker_logs' );
  * @var string
  */
 define( 'SYNDITRACKER_TABLE_KEYS', 'synditracker_keys' );
+
+/**
+ * Database table name for alerts history.
+ *
+ * @since 1.0.7
+ * @var string
+ */
+define( 'SYNDITRACKER_TABLE_ALERTS', 'synditracker_alerts' );
 
 /**
  * Default spike threshold.
@@ -244,9 +252,25 @@ class Synditracker_Core {
             UNIQUE KEY key_value (key_value)
         ) {$charset_collate};";
 
+        $table_alerts = $wpdb->prefix . SYNDITRACKER_TABLE_ALERTS;
+
+        $sql_alerts = "CREATE TABLE {$table_alerts} (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            alert_type VARCHAR(50) NOT NULL,
+            message TEXT NOT NULL,
+            duplicate_count INT UNSIGNED DEFAULT 0,
+            threshold INT UNSIGNED DEFAULT 0,
+            window_hours INT UNSIGNED DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            PRIMARY KEY (id),
+            KEY alert_type (alert_type),
+            KEY created_at (created_at)
+        ) {$charset_collate};";
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql_logs );
         dbDelta( $sql_keys );
+        dbDelta( $sql_alerts );
     }
 
     /**

@@ -46,16 +46,26 @@ class DB {
     private $table_keys;
 
     /**
+     * Alerts table name.
+     *
+     * @since 1.0.7
+     * @var string
+     */
+    private $table_alerts;
+
+    /**
      * Constructor.
      *
      * @since 1.0.6
      */
     public function __construct() {
         global $wpdb;
-        $logs_table       = defined( 'SYNDITRACKER_TABLE_LOGS' ) ? SYNDITRACKER_TABLE_LOGS : 'synditracker_logs';
-        $keys_table       = defined( 'SYNDITRACKER_TABLE_KEYS' ) ? SYNDITRACKER_TABLE_KEYS : 'synditracker_keys';
-        $this->table_logs = $wpdb->prefix . $logs_table;
-        $this->table_keys = $wpdb->prefix . $keys_table;
+        $logs_table         = defined( 'SYNDITRACKER_TABLE_LOGS' ) ? SYNDITRACKER_TABLE_LOGS : 'synditracker_logs';
+        $keys_table         = defined( 'SYNDITRACKER_TABLE_KEYS' ) ? SYNDITRACKER_TABLE_KEYS : 'synditracker_keys';
+        $alerts_table       = defined( 'SYNDITRACKER_TABLE_ALERTS' ) ? SYNDITRACKER_TABLE_ALERTS : 'synditracker_alerts';
+        $this->table_logs   = $wpdb->prefix . $logs_table;
+        $this->table_keys   = $wpdb->prefix . $keys_table;
+        $this->table_alerts = $wpdb->prefix . $alerts_table;
     }
 
     /**
@@ -281,5 +291,119 @@ class DB {
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->table_logs}" );
+    }
+
+    /**
+     * Insert an alert record.
+     *
+     * @since  1.0.7
+     * @param  string $type    Alert type (spike, error, heartbeat).
+     * @param  string $message Alert message.
+     * @param  int    $count   Duplicate count (for spike alerts).
+     * @param  int    $threshold Threshold value.
+     * @param  int    $window  Scanning window in hours.
+     * @return int|false The inserted alert ID on success, false on failure.
+     */
+    public function insert_alert( $type, $message, $count = 0, $threshold = 0, $window = 1 ) {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $result = $wpdb->insert(
+            $this->table_alerts,
+            array(
+                'alert_type'      => $type,
+                'message'         => $message,
+                'duplicate_count' => $count,
+                'threshold'       => $threshold,
+                'window_hours'    => $window,
+                'created_at'      => current_time( 'mysql' ),
+            ),
+            array( '%s', '%s', '%d', '%d', '%d', '%s' )
+        );
+
+        if ( false === $result ) {
+            Logger::get_instance()->log(
+                sprintf( 'Failed to insert alert: %s', $wpdb->last_error ),
+                'ERROR'
+            );
+            return false;
+        }
+
+        return $wpdb->insert_id;
+    }
+
+    /**
+     * Get recent alerts with pagination.
+     *
+     * @since  1.0.7
+     * @param  int    $limit  Number of alerts to retrieve.
+     * @param  int    $offset Offset for pagination.
+     * @param  string $type   Optional. Filter by alert type.
+     * @return array Array of alert objects.
+     */
+    public function get_alerts( $limit = 20, $offset = 0, $type = '' ) {
+        global $wpdb;
+
+        if ( ! empty( $type ) ) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+            return $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM {$this->table_alerts}
+                     WHERE alert_type = %s
+                     ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                    $type,
+                    $limit,
+                    $offset
+                )
+            );
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        return $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$this->table_alerts} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $limit,
+                $offset
+            )
+        );
+    }
+
+    /**
+     * Get total alerts count.
+     *
+     * @since  1.0.7
+     * @param  string $type Optional. Filter by alert type.
+     * @return int Total number of alerts.
+     */
+    public function get_alerts_count( $type = '' ) {
+        global $wpdb;
+
+        if ( ! empty( $type ) ) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+            return (int) $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$this->table_alerts} WHERE alert_type = %s",
+                    $type
+                )
+            );
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->table_alerts}" );
+    }
+
+    /**
+     * Clear all alerts.
+     *
+     * @since  1.0.7
+     * @return bool True on success, false on failure.
+     */
+    public function clear_alerts() {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $result = $wpdb->query( "TRUNCATE TABLE {$this->table_alerts}" );
+
+        return false !== $result;
     }
 }

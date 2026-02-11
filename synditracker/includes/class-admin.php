@@ -57,6 +57,7 @@ class Admin {
 
         // Log Actions.
         add_action( 'admin_post_st_clear_logs', array( $this, 'handle_clear_logs' ) );
+        add_action( 'admin_post_synditracker_clear_alerts', array( $this, 'handle_clear_alerts' ) );
         add_action( 'wp_ajax_st_test_discord_alert', array( $this, 'ajax_test_discord_alert' ) );
     }
 
@@ -77,6 +78,26 @@ class Admin {
 
         Logger::get_instance()->clear_logs();
         wp_safe_redirect( add_query_arg( 'st-logs-cleared', '1', wp_get_referer() ) );
+        exit;
+    }
+
+    /**
+     * Handle Clear Alerts action.
+     *
+     * @since  1.0.7
+     * @return void
+     */
+    public function handle_clear_alerts() {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'Unauthorized', 'synditracker' ) );
+        }
+
+        if ( ! isset( $_POST['synditracker_clear_alerts_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_POST['synditracker_clear_alerts_nonce'] ), 'synditracker_clear_alerts' ) ) {
+            wp_die( esc_html__( 'Security check failed', 'synditracker' ) );
+        }
+
+        DB::get_instance()->clear_alerts();
+        wp_safe_redirect( add_query_arg( 'st-alerts-cleared', '1', wp_get_referer() ) );
         exit;
     }
 
@@ -235,6 +256,21 @@ class Admin {
                     <?php $this->render_logs_table(); ?>
                 </div>
             </div>
+
+            <div class="st-section">
+                <div class="st-section-header">
+                    <h2><?php esc_html_e( 'Alert History', 'synditracker' ); ?></h2>
+                    <p class="st-section-desc"><?php esc_html_e( 'Recent duplication spike alerts triggered by the system.', 'synditracker' ); ?></p>
+                </div>
+                <div class="st-table-container">
+                    <?php $this->render_alerts_table(); ?>
+                </div>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top: 1rem;">
+                    <?php wp_nonce_field( 'synditracker_clear_alerts', 'synditracker_clear_alerts_nonce' ); ?>
+                    <input type="hidden" name="action" value="synditracker_clear_alerts">
+                    <button type="submit" class="button button-secondary"><?php esc_html_e( 'Clear Alert History', 'synditracker' ); ?></button>
+                </form>
+            </div>
         </div>
         <?php
     }
@@ -285,6 +321,51 @@ class Admin {
                             <?php else : ?>
                                 <span class="st-badge badge-success"><?php esc_html_e( 'Unique', 'synditracker' ); ?></span>
                             <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php
+    }
+
+    /**
+     * Render the alerts history table.
+     *
+     * @since  1.0.7
+     * @return void
+     */
+    private function render_alerts_table() {
+        $db     = DB::get_instance();
+        $alerts = $db->get_alerts( 25 );
+
+        if ( empty( $alerts ) ) {
+            echo '<div class="st-empty">' . esc_html__( 'No alerts triggered yet. Alerts will appear here when duplication spikes are detected.', 'synditracker' ) . '</div>';
+            return;
+        }
+        ?>
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th class="col-type"><?php esc_html_e( 'Type', 'synditracker' ); ?></th>
+                    <th class="col-message"><?php esc_html_e( 'Message', 'synditracker' ); ?></th>
+                    <th class="col-count"><?php esc_html_e( 'Count', 'synditracker' ); ?></th>
+                    <th class="col-threshold"><?php esc_html_e( 'Threshold', 'synditracker' ); ?></th>
+                    <th class="col-time"><?php esc_html_e( 'Triggered', 'synditracker' ); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ( $alerts as $alert ) : ?>
+                    <tr>
+                        <td class="col-type"><span class="st-badge badge-warning"><?php echo esc_html( ucfirst( $alert->alert_type ) ); ?></span></td>
+                        <td class="col-message"><?php echo esc_html( $alert->message ); ?></td>
+                        <td class="col-count"><strong><?php echo esc_html( $alert->duplicate_count ); ?></strong></td>
+                        <td class="col-threshold"><?php echo esc_html( $alert->threshold ); ?></td>
+                        <td class="col-time">
+                            <?php
+                            /* translators: %s: human-readable time difference */
+                            printf( esc_html__( '%s ago', 'synditracker' ), esc_html( human_time_diff( strtotime( $alert->created_at ), current_time( 'timestamp' ) ) ) );
+                            ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

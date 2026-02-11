@@ -203,6 +203,7 @@ class Alerts {
      * Trigger a spike alert.
      *
      * @since  1.0.0
+     * @since  1.0.7 Added alert history storage.
      * @param  int $count The duplicate count.
      * @return void
      */
@@ -211,6 +212,17 @@ class Alerts {
         $default_threshold = defined( 'SYNDITRACKER_DEFAULT_THRESHOLD' ) ? SYNDITRACKER_DEFAULT_THRESHOLD : 5;
         $threshold         = get_option( 'synditracker_spike_threshold', $default_threshold );
         $window            = isset( $options['scanning_window'] ) ? $options['scanning_window'] : 1;
+
+        /* translators: 1: duplicate count, 2: threshold, 3: window hours */
+        $message = sprintf(
+            __( 'Duplicate spike detected: %1$d duplicates in %3$d hour(s), exceeding threshold of %2$d.', 'synditracker' ),
+            $count,
+            $threshold,
+            $window
+        );
+
+        // Save to alert history.
+        DB::get_instance()->insert_alert( 'spike', $message, $count, $threshold, $window );
 
         // Email Alert.
         if ( ! empty( $options['email_enabled'] ) ) {
