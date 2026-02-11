@@ -616,15 +616,31 @@ class Admin {
             wp_send_json_error( array( 'message' => __( 'Unauthorized', 'synditracker' ) ) );
         }
 
-        if ( isset( $_POST['st_discord_webhook'] ) ) {
-            $url = isset( $_POST['st_discord_webhook'] ) ? sanitize_text_field( wp_unslash( $_POST['st_discord_webhook'] ) ) : '';
-            update_option( 'synditracker_discord_webhook', $url );
-
-            \Synditracker\Core\Logger::get_instance()->log( 'Discord Webhook URL updated by user.', 'INFO' );
-            wp_send_json_success( array( 'message' => __( 'Settings saved successfully.', 'synditracker' ) ) );
+        $discord_url = isset( $_POST['st_discord_webhook'] ) ? esc_url_raw( wp_unslash( $_POST['st_discord_webhook'] ) ) : '';
+        if ( ! empty( $discord_url ) && false === strpos( $discord_url, 'discord.com/api/webhooks/' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid Discord Webhook URL.', 'synditracker' ) ) );
         }
 
-        wp_send_json_error( array( 'message' => __( 'No data received.', 'synditracker' ) ) );
+        $threshold = isset( $_POST['st_threshold'] ) ? absint( $_POST['st_threshold'] ) : SYNDITRACKER_DEFAULT_THRESHOLD;
+        if ( $threshold < 1 ) {
+            wp_send_json_error( array( 'message' => __( 'Threshold must be at least 1.', 'synditracker' ) ) );
+        }
+
+        $settings = array(
+            'email_enabled'    => isset( $_POST['st_email_enabled'] ) ? 1 : 0,
+            'email_recipients' => isset( $_POST['st_email_recipients'] ) ? sanitize_textarea_field( wp_unslash( $_POST['st_email_recipients'] ) ) : '',
+            'discord_enabled'  => isset( $_POST['st_discord_enabled'] ) ? 1 : 0,
+            'error_discord'    => isset( $_POST['st_error_discord'] ) ? 1 : 0,
+            'discord_webhook'  => $discord_url,
+            'scanning_window'  => isset( $_POST['st_scanning_window'] ) ? absint( $_POST['st_scanning_window'] ) : 1,
+            'alert_frequency'  => isset( $_POST['st_alert_frequency'] ) ? sanitize_text_field( wp_unslash( $_POST['st_alert_frequency'] ) ) : 'immediate',
+        );
+
+        update_option( 'synditracker_alert_settings', $settings );
+        update_option( 'synditracker_spike_threshold', $threshold );
+
+        \Synditracker\Core\Logger::get_instance()->log( 'Alert settings updated by user.', 'INFO' );
+        wp_send_json_success( array( 'message' => __( 'Settings saved successfully.', 'synditracker' ) ) );
     }
 
     /**
