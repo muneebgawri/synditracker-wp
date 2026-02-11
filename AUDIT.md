@@ -25,6 +25,22 @@ The Synditracker system is a two-part syndication monitoring solution with a cle
 - **Issue:** Agent enqueued `assets/admin.css` but the file did not exist (404).
 - **Fix applied:** Added `synditracker-agent/assets/admin.css` with minimal styles for the agent admin UI (header, cards, connection status).
 
+### 1.3 Agent GUID Extraction Fails for Aggregator-Imported Posts — **FIXED (v1.0.6)**
+
+- **Issue:** The Agent used `get_the_guid($post_id)` to extract the original source post ID, looking for `?p=` format. However, when aggregators (Feedzy, WPeMatico, etc.) import posts, they create **new WordPress posts with new GUIDs** (the partner site's permalinks), not the source GUIDs.
+- **Root Cause Analysis:**
+  1. Source site (pinionnewswire.com) uses `pinion-publication-manager` plugin with `ensure_stable_guid()` to output `?p=58334` format GUIDs in RSS feeds ✅
+  2. Feedzy imports posts and creates new GUIDs like `https://partnersite.com/the-post-title-slug-123/` ❌
+  3. Agent's `extract_post_id_from_guid()` regex `/[?&]p=(\d+)/` fails on pretty permalinks
+  4. Result: No syndication reports sent → Hub has no visibility → duplicates not detected
+- **Discovery:** Investigated `businessnewsrelease.com` showing 20+ duplicate copies of the same article with no Hub visibility.
+- **Fix applied:** New `extract_original_post_id()` method that checks multiple sources in priority order:
+  1. Feedzy's `feedzy_item_url` post meta (stores original source URL)
+  2. WPeMatico's `wpe_sourcepermalink` post meta
+  3. RSS Aggregator's `wprss_item_permalink` post meta
+  4. Fall back to WordPress GUID
+- **Impact:** Agent v1.0.6 now correctly extracts source post IDs from aggregator-imported content, enabling proper duplicate detection.
+
 ---
 
 ## 2. Security

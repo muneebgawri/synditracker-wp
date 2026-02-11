@@ -3,7 +3,7 @@
  * Plugin Name: Synditracker Agent
  * Plugin URI: https://muneebgawri.com
  * Description: A lightweight agent for partner sites to report syndicated content back to the Synditracker Core.
- * Version: 1.0.5
+ * Version: 1.0.6
  * Author: Muneeb Gawri
  * Author URI: https://muneebgawri.com
  * Text Domain: synditracker-agent
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define constants.
-define( 'SYNDITRACKER_AGENT_VERSION', '1.0.5' );
+define( 'SYNDITRACKER_AGENT_VERSION', '1.0.6' );
 define( 'SYNDITRACKER_AGENT_PATH', plugin_dir_path( __FILE__ ) );
 define( 'SYNDITRACKER_AGENT_URL', plugin_dir_url( __FILE__ ) );
 define( 'SYNDITRACKER_REST_NAMESPACE', 'synditracker/v1' );
@@ -319,8 +319,7 @@ class Synditracker_Agent {
             return;
         }
 
-        $guid             = get_the_guid( $post_ID );
-        $original_post_id = $this->extract_post_id_from_guid( $guid );
+        $original_post_id = $this->extract_original_post_id( $post_ID );
 
         if ( ! $original_post_id ) {
             return;
@@ -330,17 +329,79 @@ class Synditracker_Agent {
     }
 
     /**
-     * Extract original Post ID from GUID.
+     * Extract original Post ID from multiple sources.
      *
-     * @since  1.0.0
-     * @param  string $guid Post GUID.
+     * Checks aggregator-stored source URLs first, then falls back to GUID.
+     * Supports Feedzy, WPeMatico, and standard WordPress imports.
+     *
+     * @since  1.0.6
+     * @param  int $post_id Local post ID.
      * @return int|false Original post ID or false if not found.
      */
-    private function extract_post_id_from_guid( $guid ) {
-        if ( preg_match( '/[?&]p=(\d+)/', $guid, $matches ) ) {
+    private function extract_original_post_id( $post_id ) {
+        // Priority 1: Check Feedzy's stored source URL.
+        $feedzy_url = get_post_meta( $post_id, 'feedzy_item_url', true );
+        if ( ! empty( $feedzy_url ) ) {
+            $extracted = $this->extract_post_id_from_url( $feedzy_url );
+            if ( $extracted ) {
+                return $extracted;
+            }
+        }
+
+        // Priority 2: Check WPeMatico's stored source URL.
+        $wpematico_url = get_post_meta( $post_id, 'wpe_sourcepermalink', true );
+        if ( ! empty( $wpematico_url ) ) {
+            $extracted = $this->extract_post_id_from_url( $wpematico_url );
+            if ( $extracted ) {
+                return $extracted;
+            }
+        }
+
+        // Priority 3: Check RSS Aggregator's stored source.
+        $rss_url = get_post_meta( $post_id, 'wprss_item_permalink', true );
+        if ( ! empty( $rss_url ) ) {
+            $extracted = $this->extract_post_id_from_url( $rss_url );
+            if ( $extracted ) {
+                return $extracted;
+            }
+        }
+
+        // Priority 4: Fall back to WordPress GUID.
+        $guid = get_the_guid( $post_id );
+        return $this->extract_post_id_from_url( $guid );
+    }
+
+    /**
+     * Extract original Post ID from a URL.
+     *
+     * Looks for ?p=ID or &p=ID pattern in URLs.
+     *
+     * @since  1.0.6
+     * @param  string $url URL to parse.
+     * @return int|false Original post ID or false if not found.
+     */
+    private function extract_post_id_from_url( $url ) {
+        if ( empty( $url ) ) {
+            return false;
+        }
+
+        if ( preg_match( '/[?&]p=(\d+)/', $url, $matches ) ) {
             return (int) $matches[1];
         }
+
         return false;
+    }
+
+    /**
+     * Extract original Post ID from GUID.
+     *
+     * @since      1.0.0
+     * @deprecated 1.0.6 Use extract_original_post_id() instead.
+     * @param      string $guid Post GUID.
+     * @return     int|false Original post ID or false if not found.
+     */
+    private function extract_post_id_from_guid( $guid ) {
+        return $this->extract_post_id_from_url( $guid );
     }
 
     /**
