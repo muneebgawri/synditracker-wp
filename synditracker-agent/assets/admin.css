@@ -1,0 +1,51 @@
+/* Synditracker Agent Admin Styles */
+.synditracker-dashboard {
+    max-width: 600px;
+    margin: 20px 0;
+}
+
+.st-header {
+    display: flex;
+    align-items: baseline;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.st-header h1 {
+    margin: 0;
+}
+
+.st-version {
+    background: #e5e7eb;
+    color: #4b5563;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+}
+
+.st-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.st-agent-status {
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    border-left: 4px solid;
+}
+
+.st-status-connected {
+    background: #f0fdf4;
+    border-color: #166534;
+    color: #14532d;
+}
+
+.st-status-disconnected {
+    background: #fef2f2;
+    border-color: #991b1b;
+    color: #7f1d1d;
+}

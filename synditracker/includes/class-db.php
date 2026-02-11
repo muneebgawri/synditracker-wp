@@ -1,26 +1,71 @@
 <?php
+/**
+ * Database Helper Class.
+ *
+ * Handles all database operations for the Synditracker system.
+ *
+ * @package Synditracker
+ * @since   1.0.0
+ */
+
 namespace Synditracker\Core;
 
-if (!defined('ABSPATH')) {
+if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
 /**
  * Database Helper Class.
+ *
+ * @since 1.0.0
  */
-class DB
-{
+class DB {
+
     /**
-     * Instance of this class.
+     * Singleton instance of this class.
+     *
+     * @since 1.0.0
+     * @var DB|null
      */
     private static $instance = null;
 
     /**
-     * Get instance.
+     * Logs table name.
+     *
+     * @since 1.0.6
+     * @var string
      */
-    public static function get_instance()
-    {
-        if (null === self::$instance) {
+    private $table_logs;
+
+    /**
+     * Keys table name.
+     *
+     * @since 1.0.6
+     * @var string
+     */
+    private $table_keys;
+
+    /**
+     * Constructor.
+     *
+     * @since 1.0.6
+     */
+    public function __construct() {
+        global $wpdb;
+        $logs_table       = defined( 'SYNDITRACKER_TABLE_LOGS' ) ? SYNDITRACKER_TABLE_LOGS : 'synditracker_logs';
+        $keys_table       = defined( 'SYNDITRACKER_TABLE_KEYS' ) ? SYNDITRACKER_TABLE_KEYS : 'synditracker_keys';
+        $this->table_logs = $wpdb->prefix . $logs_table;
+        $this->table_keys = $wpdb->prefix . $keys_table;
+    }
+
+    /**
+     * Get the singleton instance.
+     *
+     * @since  1.0.0
+     * @return DB
+     */
+    public static function get_instance() {
+        if ( null === self::$instance ) {
             self::$instance = new self();
         }
         return self::$instance;
@@ -28,132 +73,213 @@ class DB
 
     /**
      * Log a syndication event.
+     *
+     * @since  1.0.0
+     * @since  1.0.6 Added return value validation and hooks.
+     * @param  array $data The syndication data to log.
+     * @return int|false The inserted log ID on success, false on failure.
      */
-    public function log_syndication($data)
-    {
+    public function log_syndication( $data ) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'synditracker_logs';
 
         // Check for duplicates in the last 24 hours.
-        $is_duplicate = $this->check_is_duplicate($data['post_id'], $data['site_url']);
+        $is_duplicate = $this->check_is_duplicate( $data['post_id'], $data['site_url'] );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
         $result = $wpdb->insert(
-            $table_name,
+            $this->table_logs,
             array(
                 'post_id'      => $data['post_id'],
                 'site_url'     => $data['site_url'],
                 'site_name'    => $data['site_name'],
                 'aggregator'   => $data['aggregator'],
                 'is_duplicate' => $is_duplicate ? 1 : 0,
-                'timestamp'    => current_time('mysql'),
+                'timestamp'    => current_time( 'mysql' ),
             ),
-            array('%d', '%s', '%s', '%s', '%d', '%s')
+            array( '%d', '%s', '%s', '%s', '%d', '%s' )
         );
 
-        if ($result && $is_duplicate) {
+        if ( false === $result ) {
+            Logger::get_instance()->log(
+                sprintf( 'Database insert failed: %s', $wpdb->last_error ),
+                'ERROR'
+            );
+            return false;
+        }
+
+        $log_id = $wpdb->insert_id;
+
+        if ( $is_duplicate ) {
             $this->check_for_spikes();
         }
 
-        return $result ? $wpdb->insert_id : false;
+        return $log_id;
     }
 
     /**
      * Check if an entry is a duplicate (within 24 hours).
+     *
+     * @since  1.0.0
+     * @param  int    $post_id  The original post ID.
+     * @param  string $site_url The site URL.
+     * @return bool True if duplicate, false otherwise.
      */
-    public function check_is_duplicate($post_id, $site_url)
-    {
+    public function check_is_duplicate( $post_id, $site_url ) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'synditracker_logs';
 
-        $query = $wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_name 
-             WHERE post_id = %d 
-             AND site_url = %s 
-             AND timestamp >= DATE_SUB(%s, INTERVAL 24 HOUR)",
-            $post_id,
-            $site_url,
-            current_time('mysql')
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $count = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$this->table_logs}
+                 WHERE post_id = %d
+                 AND site_url = %s
+                 AND timestamp >= DATE_SUB(%s, INTERVAL 24 HOUR)",
+                $post_id,
+                $site_url,
+                current_time( 'mysql' )
+            )
         );
 
-        return (int) $wpdb->get_var($query) > 0;
+        return (int) $count > 0;
     }
 
     /**
      * Get syndication metrics.
+     *
+     * @since  1.0.0
+     * @since  1.0.6 Optimized with single query aggregation.
+     * @return array The metrics array.
      */
-    public function get_metrics()
-    {
+    public function get_metrics() {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'synditracker_logs';
 
-        $total = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
-        $duplicates = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE is_duplicate = 1");
-        $unique_partners = $wpdb->get_var("SELECT COUNT(DISTINCT site_url) FROM $table_name");
+        // Use single query with conditional aggregation for efficiency.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $metrics = $wpdb->get_row(
+            "SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN is_duplicate = 1 THEN 1 ELSE 0 END) as duplicates,
+                COUNT(DISTINCT site_url) as unique_partners
+             FROM {$this->table_logs}"
+        );
+
+        $total      = $metrics ? (int) $metrics->total : 0;
+        $duplicates = $metrics ? (int) $metrics->duplicates : 0;
 
         return array(
-            'total'           => (int) $total,
-            'duplicates'      => (int) $duplicates,
-            'unique_partners' => (int) $unique_partners,
-            'duplicate_rate'  => $total > 0 ? round(($duplicates / $total) * 100, 2) : 0,
+            'total'           => $total,
+            'duplicates'      => $duplicates,
+            'unique_partners' => $metrics ? (int) $metrics->unique_partners : 0,
+            'duplicate_rate'  => $total > 0 ? round( ( $duplicates / $total ) * 100, 2 ) : 0,
         );
     }
 
     /**
      * Check for duplicate spikes and send alert.
+     *
+     * @since  1.0.0
+     * @return void
      */
-    private function check_for_spikes()
-    {
+    private function check_for_spikes() {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'synditracker_logs';
-        $threshold = get_option('synditracker_spike_threshold', 5);
-        $settings = get_option('synditracker_alert_settings', array());
-        
-        $window = isset($settings['scanning_window']) ? intval($settings['scanning_window']) : 1;
-        $frequency = isset($settings['alert_frequency']) ? $settings['alert_frequency'] : 'immediate';
+
+        $default_threshold = defined( 'SYNDITRACKER_DEFAULT_THRESHOLD' ) ? SYNDITRACKER_DEFAULT_THRESHOLD : 5;
+        $threshold         = get_option( 'synditracker_spike_threshold', $default_threshold );
+        $settings          = get_option( 'synditracker_alert_settings', array() );
+
+        $window    = isset( $settings['scanning_window'] ) ? intval( $settings['scanning_window'] ) : 1;
+        $frequency = isset( $settings['alert_frequency'] ) ? $settings['alert_frequency'] : 'immediate';
 
         // Count duplicates in the last X hours.
-        $query = $wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_name 
-             WHERE is_duplicate = 1 
-             AND timestamp >= DATE_SUB(%s, INTERVAL %d HOUR)",
-            current_time('mysql'),
-            $window
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $spike_count = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$this->table_logs}
+                 WHERE is_duplicate = 1
+                 AND timestamp >= DATE_SUB(%s, INTERVAL %d HOUR)",
+                current_time( 'mysql' ),
+                $window
+            )
         );
 
-        $spike_count = (int) $wpdb->get_var($query);
+        if ( $spike_count >= $threshold ) {
+            /**
+             * Fires when a duplicate spike is detected.
+             *
+             * @since 1.0.6
+             * @param int $spike_count The number of duplicates detected.
+             * @param int $threshold   The configured threshold.
+             * @param int $window      The scanning window in hours.
+             */
+            do_action( 'synditracker_spike_detected', $spike_count, $threshold, $window );
 
-        if ($spike_count >= $threshold) {
-            // If frequency is immediate, send now. 
-            // Otherwise, cron will handle batching via separate logic.
-            if ($frequency === 'immediate') {
-                Alerts::get_instance()->trigger_spike_alert($spike_count);
+            // If frequency is immediate, send now.
+            if ( 'immediate' === $frequency ) {
+                Alerts::get_instance()->trigger_spike_alert( $spike_count );
             }
         }
     }
 
     /**
      * Get metrics for a specific hour window.
+     *
+     * @since  1.0.0
+     * @param  int $hours The number of hours to look back.
+     * @return array The metrics for the window.
      */
-    public function get_metrics_for_window($hours)
-    {
+    public function get_metrics_for_window( $hours ) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'synditracker_logs';
 
-        $total = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_name WHERE timestamp >= DATE_SUB(%s, INTERVAL %d HOUR)",
-            current_time('mysql'),
-            $hours
-        ));
-
-        $duplicates = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_name WHERE is_duplicate = 1 AND timestamp >= DATE_SUB(%s, INTERVAL %d HOUR)",
-            current_time('mysql'),
-            $hours
-        ));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $metrics = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN is_duplicate = 1 THEN 1 ELSE 0 END) as duplicates
+                 FROM {$this->table_logs}
+                 WHERE timestamp >= DATE_SUB(%s, INTERVAL %d HOUR)",
+                current_time( 'mysql' ),
+                $hours
+            )
+        );
 
         return array(
-            'total'      => (int) $total,
-            'duplicates' => (int) $duplicates,
+            'total'      => $metrics ? (int) $metrics->total : 0,
+            'duplicates' => $metrics ? (int) $metrics->duplicates : 0,
         );
+    }
+
+    /**
+     * Get recent logs with pagination.
+     *
+     * @since  1.0.6
+     * @param  int $limit  Number of logs to retrieve.
+     * @param  int $offset Offset for pagination.
+     * @return array Array of log objects.
+     */
+    public function get_logs( $limit = 50, $offset = 0 ) {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        return $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$this->table_logs} ORDER BY timestamp DESC LIMIT %d OFFSET %d",
+                $limit,
+                $offset
+            )
+        );
+    }
+
+    /**
+     * Get total log count.
+     *
+     * @since  1.0.6
+     * @return int Total number of logs.
+     */
+    public function get_total_logs_count() {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->table_logs}" );
     }
 }
