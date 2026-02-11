@@ -42,11 +42,23 @@ if (!class_exists('Synditracker_GitHub_Updater')) {
         }
 
         if (version_compare($this->version, $remote_data->tag_name, '<')) {
+            $package = $remote_data->zipball_url;
+
+            // Check for specific asset.
+            if (!empty($remote_data->assets)) {
+                foreach ($remote_data->assets as $asset) {
+                    if ($asset->name === $this->slug . '.zip') {
+                        $package = $asset->browser_download_url;
+                        break;
+                    }
+                }
+            }
+
             $obj              = new \stdClass();
             $obj->slug        = $this->slug;
             $obj->new_version = $remote_data->tag_name;
             $obj->url         = "https://github.com/{$this->github_repo}";
-            $obj->package     = $remote_data->zipball_url;
+            $obj->package     = $package;
             $obj->plugin      = plugin_basename($this->plugin_file);
 
             $transient->response[plugin_basename($this->plugin_file)] = $obj;
@@ -69,13 +81,25 @@ if (!class_exists('Synditracker_GitHub_Updater')) {
             return $result;
         }
 
+        $package = $remote_data->zipball_url;
+
+        // Check for specific asset.
+        if (!empty($remote_data->assets)) {
+            foreach ($remote_data->assets as $asset) {
+                if ($asset->name === $this->slug . '.zip') {
+                    $package = $asset->browser_download_url;
+                    break;
+                }
+            }
+        }
+
         $res = new \stdClass();
         $res->name           = $this->plugin_name;
         $res->slug           = $this->slug;
         $res->version        = $remote_data->tag_name;
         $res->author         = '<a href="https://muneebgawri.com">Muneeb Gawri</a>';
         $res->homepage       = "https://github.com/{$this->github_repo}";
-        $res->download_link  = $remote_data->zipball_url;
+        $res->download_link  = $package;
         $res->sections       = array(
             'description' => sprintf('A professional-grade component of the %s system.', $this->plugin_name),
             'changelog'   => 'Check the GitHub repository for detailed changelogs.',

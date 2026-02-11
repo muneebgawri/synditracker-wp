@@ -48,6 +48,9 @@ This system is configured to receive updates directly from the [synditracker-wp]
 
 ## Changelog
 
+### 1.0.4
+- **Improvement**: Enhanced auto-update logic to download plugin-specific zip files instead of the full repository source.
+
 ### 1.0.3
 - **Fix**: Resolved "Error 400" connectivity test failure by updating Agent payload and Hub validation.
 

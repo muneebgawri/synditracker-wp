@@ -3,7 +3,7 @@
  * Plugin Name: Synditracker Agent
  * Plugin URI: https://muneebgawri.com
  * Description: A lightweight agent for partner sites to report syndicated content back to the Synditracker Core.
- * Version: 1.0.3
+ * Version: 1.0.4
  * Author: Muneeb Gawri
  * Author URI: https://muneebgawri.com
  * Text Domain: synditracker-agent
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define constants.
-define('SYNDITRACKER_AGENT_VERSION', '1.0.3');
+define('SYNDITRACKER_AGENT_VERSION', '1.0.4');
 define('SYNDITRACKER_AGENT_PATH', plugin_dir_path(__FILE__));
 
 /**
