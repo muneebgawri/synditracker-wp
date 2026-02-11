@@ -251,12 +251,42 @@ xmlns:pinion="https://pinionnewswire.com/ns/1.0"  // Custom namespace
 3. **Future-proof** — Synditracker Agent can read `<pinion:sourceId>` directly from imported post content
 4. **Content fingerprint** — Even if other IDs fail, identical content produces identical hash
 
-### 10.3 Files Modified
+### 10.3 Content Edit Stability (Frozen Fingerprints)
+
+**Problem:** When press release content is edited after publication (feedback, typo fixes, meta updates), the content hash changes, causing aggregators to see it as "new" and reimport.
+
+**Solution:** Freeze syndication identifiers on first publish:
+
+```php
+// On first publish (transition_post_status hook):
+update_post_meta($post_id, '_pinion_content_hash', md5($title.$content));
+update_post_meta($post_id, '_pinion_first_published', current_time('c'));
+
+// In RSS feed output:
+$content_hash = get_post_meta($post_id, '_pinion_content_hash', true);
+// Uses frozen hash, not recalculated
+```
+
+**New RSS elements:**
+- `<pinion:contentHash>` — Frozen at first publish, never changes on edits
+- `<pinion:firstPublished>` — ISO 8601 timestamp of initial publication
+
+**What changes are safe:**
+| Change Type | Affects Fingerprint? | Reimport Risk? |
+|-------------|---------------------|----------------|
+| Content edits | No (frozen) | ✅ Safe |
+| Title edits | No (frozen) | ✅ Safe |
+| Meta field changes | No | ✅ Safe |
+| Taxonomy changes | No | ⚠️ May appear in new category feeds |
+| New category assignment | No | ⚠️ Article shows in new feed |
+
+### 10.4 Files Modified
 
 - `pinion-publication-manager/includes/modules/class-feeds.php`:
   - Added `add_syndication_namespaces()` method (adds DC, Atom, Pinion namespaces)
   - Added `add_syndication_identifiers()` method (adds all deduplication elements)
-  - Hooked both to `rss2_ns` and `rss2_item` actions
+  - Added `freeze_syndication_fingerprint()` method (freezes hash/timestamp on first publish)
+  - Hooked to `rss2_ns`, `rss2_item`, and `transition_post_status` actions
 
 ---
 
