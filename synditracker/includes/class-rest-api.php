@@ -75,6 +75,11 @@ class REST_API
     {
         $params = $request->get_params();
 
+        // Intercept Connection Tests (Pings)
+        if (isset($params['aggregator']) && $params['aggregator'] === 'Test') {
+            return new \WP_REST_Response(array('message' => 'Connection successful'), 200);
+        }
+
         // Basic validation.
         if (empty($params['post_id']) || empty($params['site_url'])) {
             return new \WP_REST_Response(array('message' => 'Missing required fields'), 400);

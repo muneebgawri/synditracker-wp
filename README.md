@@ -48,6 +48,9 @@ This system is configured to receive updates directly from the [synditracker-wp]
 
 ## Changelog
 
+### 1.0.3
+- **Fix**: Resolved "Error 400" connectivity test failure by updating Agent payload and Hub validation.
+
 ### 1.0.2
 - **New Feature**: AJAX-based settings saving (no page reloads).
 - **New Feature**: Click-to-Copy for Site Keys.
