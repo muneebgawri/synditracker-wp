@@ -530,20 +530,21 @@ class Admin {
                     <span id="st-test-discord-status" style="margin-left: 10px; font-weight: bold;"></span>
                 </p>
             </form>
-        </div>
 
-        <div id="logs" class="tab-content" style="display:none;">
-            <h2><?php esc_html_e( 'System Logs', 'synditracker' ); ?></h2>
-            <p><?php esc_html_e( 'Recent debug logs for troubleshooting.', 'synditracker' ); ?></p>
-            <textarea readonly style="width: 100%; height: 400px; font-family: monospace; background: #f0f0f1;"><?php
-                $logs = \Synditracker\Core\Logger::get_instance()->get_logs( 100 );
-                echo esc_textarea( implode( '', $logs ) );
-            ?></textarea>
-            <form method="post" style="margin-top: 10px;">
-                <input type="hidden" name="st_clear_logs" value="1">
-                <?php wp_nonce_field( 'st_clear_logs_action', 'st_clear_logs_nonce' ); ?>
-                <input type="submit" class="button button-secondary" value="<?php esc_attr_e( 'Clear Logs', 'synditracker' ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to clear all logs?', 'synditracker' ) ); ?>');">
-            </form>
+            <div class="st-section st-card" style="margin-top: 20px;">
+                <h3><?php esc_html_e( 'System Logs', 'synditracker' ); ?></h3>
+                <p><?php esc_html_e( 'Recent debug logs for troubleshooting.', 'synditracker' ); ?></p>
+                <textarea readonly style="width: 100%; height: 300px; font-family: monospace; background: #f0f0f1; font-size: 12px;"><?php
+                    $logs = \Synditracker\Core\Logger::get_instance()->get_logs( 100 );
+                    echo esc_textarea( implode( '', $logs ) );
+                ?></textarea>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top: 10px;">
+                    <input type="hidden" name="action" value="st_clear_logs">
+                    <input type="hidden" name="st_clear_logs" value="1">
+                    <?php wp_nonce_field( 'st_clear_logs_action', 'st_clear_logs_nonce' ); ?>
+                    <input type="submit" class="button button-secondary" value="<?php esc_attr_e( 'Clear Logs', 'synditracker' ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to clear all logs?', 'synditracker' ) ); ?>');">
+                </form>
+            </div>
         </div>
         <?php
     }
