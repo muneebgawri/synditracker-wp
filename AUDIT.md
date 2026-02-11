@@ -196,10 +196,76 @@ The Synditracker system is a two-part syndication monitoring solution with a cle
 
 ---
 
+## 10. Syndication Deduplication Enhancement (Source-Side Fix)
+
+### 10.1 Problem: Partner Sites Import Same Content Multiple Times
+
+**Observed Issue:** Partner sites using RSS aggregators (Feedzy, WPeMatico, etc.) were importing the same article 20+ times, creating duplicates with slug suffixes like `-113`, `-114`, etc.
+
+**Root Cause Analysis:**
+1. Each aggregator uses different deduplication strategies:
+   - Some check `<guid>` only
+   - Some check `<link>` only
+   - Some check post title
+   - Some check content hash
+2. Category feeds may include the same article in multiple feeds (e.g., `/feed/` and `/category/technology/feed/`)
+3. When aggregators don't find the identifier they expect, they treat the item as "new"
+
+**Challenge:** We don't administer partner sites and can't configure their aggregators individually.
+
+### 10.2 Server-Side Solution: Enhanced RSS Deduplication Metadata
+
+**Approach:** Add multiple redundant identifiers to RSS items so that **any** deduplication strategy used by aggregators will find a stable unique ID.
+
+**Implementation in `class-feeds.php`:**
+
+```php
+// New XML namespaces added to RSS feed
+xmlns:dc="http://purl.org/dc/elements/1.1/"      // Dublin Core
+xmlns:atom="http://www.w3.org/2005/Atom"          // Atom standard
+xmlns:pinion="https://pinionnewswire.com/ns/1.0"  // Custom namespace
+
+// New elements added to each RSS item:
+<dc:identifier>pinion-post-58334</dc:identifier>           // Dublin Core ID
+<atom:id>urn:pinion:post:58334</atom:id>                   // Atom URN-based ID
+<pinion:sourceId>58334</pinion:sourceId>                   // Explicit source post ID
+<pinion:sourceUrl>https://pinionnewswire.com/?p=58334</pinion:sourceUrl>  // Canonical GUID
+<pinion:contentHash>a1b2c3d4e5f6...</pinion:contentHash>   // MD5 of title+content
+<source url="https://pinionnewswire.com/feed/">Pinion Newswire</source>   // RSS standard source
+```
+
+**How This Helps:**
+
+| Aggregator Strategy | Element That Will Match |
+|---------------------|-------------------------|
+| GUID-based | `<guid>`, `<pinion:sourceUrl>` |
+| Atom-aware | `<atom:id>` |
+| Dublin Core | `<dc:identifier>` |
+| Link-based | `<link>`, `<source url>` |
+| Content-based | `<pinion:contentHash>` |
+| Custom/Synditracker | `<pinion:sourceId>` |
+
+**Benefits:**
+1. **No partner coordination required** — Metadata is in the feed, aggregators can use it
+2. **Backwards compatible** — Standard RSS, just with extra elements
+3. **Future-proof** — Synditracker Agent can read `<pinion:sourceId>` directly from imported post content
+4. **Content fingerprint** — Even if other IDs fail, identical content produces identical hash
+
+### 10.3 Files Modified
+
+- `pinion-publication-manager/includes/modules/class-feeds.php`:
+  - Added `add_syndication_namespaces()` method (adds DC, Atom, Pinion namespaces)
+  - Added `add_syndication_identifiers()` method (adds all deduplication elements)
+  - Hooked both to `rss2_ns` and `rss2_item` actions
+
+---
+
 ## 9. Checklist Summary
 
 - [x] Critical REST/DB bug fixed (use `log_syndication`, remove `validate_key`, sanitize input).
 - [x] Missing Agent CSS added.
+- [x] Agent GUID extraction fixed for aggregator-imported posts (v1.0.6).
+- [x] RSS feed enhanced with syndication deduplication metadata (DC, Atom, Pinion namespace).
 - [ ] Add `Domain Path` and `load_plugin_textdomain` for both plugins; wrap strings for i18n.
 - [ ] Add PHPDoc and `@since` to public methods.
 - [ ] Consider autoloading and shared code for Logger / GitHub Updater.
